@@ -1,13 +1,14 @@
 use std::{
     cell::RefCell, cmp::{PartialEq, PartialOrd}, fmt::{Debug, Error}, rc::Rc
         };
+use dll::dll::List;
 
 // types used for the link
 type Link<T> = Rc<RefCell<Node<T>>>;
 
 // private basic struct of a node
 #[derive(Debug)]
-struct Node<T: Clone + PartialOrd + PartialEq>
+struct Node<T: Clone + PartialOrd + PartialEq + Debug>
 {
     data: T,
     left: Option<Link<T>>,
@@ -15,7 +16,7 @@ struct Node<T: Clone + PartialOrd + PartialEq>
 }
 
 // implementation of Node to create a new one
-impl<T: Clone + PartialOrd + PartialEq> Node<T>
+impl<T: Clone + PartialOrd + PartialEq + Debug> Node<T>
 {
     pub fn new(data: T) -> Self
     {
@@ -23,7 +24,7 @@ impl<T: Clone + PartialOrd + PartialEq> Node<T>
     }
 }
 
-impl<T: Clone + PartialOrd + PartialEq>  PartialEq for Node<T>
+impl<T: Clone + PartialOrd + PartialEq + Debug>  PartialEq for Node<T>
 {
     fn eq(&self, other: &Self) -> bool {
         self.data == other.data
@@ -34,7 +35,9 @@ impl<T: Clone + PartialOrd + PartialEq>  PartialEq for Node<T>
     }
 }
 
-impl<T: Clone + PartialOrd> PartialOrd for Node<T>
+/// allows us to compare nodes much easier by using
+/// the relational operators
+impl<T: Clone + PartialOrd + Debug> PartialOrd for Node<T>
 {
     fn lt(&self, other: &Self) -> bool {
         self.data < other.data
@@ -59,14 +62,22 @@ impl<T: Clone + PartialOrd> PartialOrd for Node<T>
 
 // binary tree
 #[derive(Debug)]
-pub struct Tree<T: Clone + PartialOrd + PartialEq>
+pub struct Tree<T: Clone + PartialOrd + PartialEq + Debug>
 {
     root: Option<Link<T>>,
     size: u32
 }
 
+pub struct TreeIterator<T: Clone + PartialOrd + PartialEq + Debug>
+{
+    // container for a doubly linked list
+    // opted to use this over a vec since it has
+    // push front and back methods
+    nodes: List<Link<T>>,
+}
+
 // api of the tree
-impl<T: Clone + PartialOrd + PartialEq> Tree<T>
+impl<T: Clone + PartialOrd + PartialEq + Debug> Tree<T>
 {
     // creates an empty tree
     pub fn new() -> Tree<T>
@@ -224,4 +235,134 @@ impl<T: Clone + PartialOrd + PartialEq> Tree<T>
         }
     }
 
+    ///  recursively copies the data from src to the destination node
+    /// which in turn copies the entire tree. Meant to be used with the 
+    /// Clone trait
+    fn copy_r(src: &Option<Link<T>>, dst: &mut Option<Link<T>>) -> u32
+    {
+        match src {
+            None => 0,
+            Some(src_node) => {
+                // copy src node's data to a new node
+                let new_node = Rc::new(RefCell::new(Node::new(src_node.borrow().data.clone())));
+                let mut number_of_nodes = 0;
+
+                { // new scope to abide by borrow checker with the new node
+                    let mut mut_borrow_node = new_node.borrow_mut();
+                    // copy the left and right children
+                    number_of_nodes += Self::copy_r(&src_node.borrow().left, &mut mut_borrow_node.left) +
+                                Self::copy_r(&src_node.borrow().right, &mut mut_borrow_node.right) +
+                                1;
+                }
+
+                *dst = Some(new_node);
+                
+                number_of_nodes
+            }
+        }
+    }
+
+
+    /// traverses the tree in order, copying over all the data into the 
+    /// itterator so it can be used as an itterator
+    fn get_nodes_in_order(src: &Option<Link<T>>, dst: &mut TreeIterator<T>) -> u32
+    {
+        match src {
+            None => 0,
+            Some(src_node) => {
+                let mut number_of_nodes = 0;
+                // go left
+                number_of_nodes += Self::get_nodes_in_order(&src_node.borrow().left, dst);
+                // copy current node
+                dst.nodes.push_back(src_node.clone());
+                // go right
+                number_of_nodes += Self::get_nodes_in_order(&src_node.borrow().right, dst);
+
+                number_of_nodes + 1
+            }
+        }
+    }
+
+    /// displays the data in the tree in order
+    pub fn display(&self) -> u32
+    {
+        Self::display_r(&self.root)
+    }
+
+    /// recursive function ot traverse the tree in order
+    /// and display all the data
+    fn display_r(node: &Option<Link<T>>) -> u32
+    {
+        match node {
+            None => 0,
+            Some(node) => {
+                let mut total: u32 = 0;
+                // go left, then node, then right
+                total += Self::display_r(&node.borrow().left);
+
+                println!("{:?}", node.borrow().data);
+                total += 1;
+
+                total += Self::display_r(&node.borrow().right);
+
+                total
+            }
+        }
+    }
+
+}
+
+/// implements all the necessary methods for the tree to be
+/// cloned properly. Performs a deep copy of the tree allocating
+/// new memory for the new tree.
+impl<T: Clone + PartialOrd + PartialEq + Debug> Clone for Tree<T>
+{
+    fn clone(&self) -> Self {
+        let mut new = Self::new();
+        assert_eq!(self.size, Self::copy_r(&self.root, &mut new.root));
+        // make sure the new tree's size is also kept correctly
+        new.size = self.size;
+        new
+    }
+}
+
+/// implementing the into iter method so that the tree can be itterated over
+/// in a for loop
+impl<T: Clone + PartialOrd + PartialEq + Debug> IntoIterator for Tree<T>
+{
+    type IntoIter = TreeIterator<T>;
+    type Item = T;
+
+    fn into_iter(self) -> TreeIterator<T>
+    {
+        let mut iter = TreeIterator::new();
+        assert_eq!(self.size, Self::get_nodes_in_order(&self.root, &mut iter));
+        iter
+    }
+}
+
+/// creates a new tree iterator object which is just a container
+/// for a doubly linked list
+impl<T: Clone + PartialOrd + PartialEq + Debug> TreeIterator<T>
+{
+    pub fn new() -> Self
+    {
+        Self{nodes: List::new()}
+    }
+}
+
+/// properly implements the iterator trait so that the iterator
+/// can be used properly
+impl<T: Clone + PartialOrd + PartialEq + Debug> Iterator for TreeIterator<T>
+{
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next_node = self.nodes.pop_front();
+
+        match next_node {
+            None => None,
+            Some(node) => Some(node.borrow().data.clone())
+        }
+    }
 }

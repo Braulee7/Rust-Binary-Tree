@@ -56,4 +56,29 @@ pub mod binary_tree_tests
         // make sure it fails when removing a non-existant node
         assert!(tree.remove(999).is_err());
     }
+
+    #[test]
+    fn test_clone()
+    {
+        // ARRANGE
+        let mut original_tree   = Tree::<String>::new();
+        let mut copy_tree       = Tree::<String>::new();
+
+        // ACT
+        // add data to the original tree
+        original_tree.insert(String::from("first"));
+        original_tree.insert(String::from("second"));
+        original_tree.insert(String::from("third"));
+        original_tree.insert(String::from("fourth"));
+        original_tree.insert(String::from("fifth"));
+        original_tree.insert(String::from("sixth"));
+
+        // clone the tree
+        copy_tree = original_tree.clone();
+
+        // ASSERT
+        for (original_string, copy_tree) in original_tree.into_iter().zip(copy_tree.into_iter()) {
+            assert_eq!(original_string, copy_tree);
+        }
+    }
 }

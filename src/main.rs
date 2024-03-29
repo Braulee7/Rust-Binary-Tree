@@ -11,16 +11,13 @@ fn main() {
     tree.insert(4);
     tree.insert(5);
 
-    println!("{:?}", tree);
-    
-    // remove a leaf
-    println!("{:?}", tree.remove(5).unwrap());
-    // remove an inner node
-    println!("{:?}", tree.remove(1).unwrap());
-    println!("After removing One: {:?}", tree);
-    // remove the root
-    println!("{:?}", tree.remove(3).unwrap());
-    println!("After removing Three: {:?}", tree);
+    println!("Data in Tree <Total of {:?} nodes in tree>:", tree.display());
 
+    let mut new_tree = tree.clone();
+
+
+    for item in new_tree {
+        println!("The current item is : {:?}", item);
+    }
      println!("{:?}", tree);
 }
